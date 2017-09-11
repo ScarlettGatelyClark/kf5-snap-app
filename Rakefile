@@ -19,12 +19,14 @@ task :appstream => :'repo::setup'
 
 task :generate do
   puts File.read('appname')
-  sh 'apt install -y appstream devscripts'
   sh 'apt update'
+  sh 'apt dist-upgrade -y'
+  sh 'apt install -y appstream devscripts ruby-dev'
   # Dependency of deb822 parser borrowed from pangea-tooling.
   sh 'gem install insensitive_hash'
   # So we can convert appstream html to markdown making it readable
   sh 'gem install reverse_markdown'
+  sh 'gem install gir_ffi'
   ruby 'generate.rb'
 end
 task :generate => [:'repo::setup', :appstream]
@@ -38,6 +40,8 @@ end
 task :snapcraft => :'repo::setup'
 
 task :publish do
+  # Compat, contain.rb currently has a bug overwriting the whitelist of vars.
+  ENV['APPNAME'] = File.read('appname').strip
   require 'fileutils'
   sh 'apt update'
   sh 'apt install -y snapcraft'
@@ -45,4 +49,26 @@ task :publish do
   FileUtils.mkpath(cfgdir)
   File.write("#{cfgdir}/snapcraft.cfg", File.read('snapcraft.cfg'))
   sh 'snapcraft push *.snap'
+  rev_lines = `snapcraft revisions #{ENV['APPNAME']}`.strip.split($/)[1..-1]
+  revs = rev_lines.collect { |l| Revision.new(l) }
+  p rev = revs[0]
+  if rev.channels != '-' # not published
+    warn "#{ENV['APPNAME']} is already published in #{rev.channels}"
+    return
+  end
+  sh "snapcraft release #{ENV['APPNAME']} #{rev} candidate,beta,edge"
+end
+
+class Revision
+  attr_reader :number
+  attr_reader :channels
+
+  def initialize(line)
+    @number, _date, _arch, _version, @channels = line.split(/\s+/, 5)
+    @number = @number.to_i # convert from str to int
+  end
+
+  def to_s
+    number.to_s
+  end
 end

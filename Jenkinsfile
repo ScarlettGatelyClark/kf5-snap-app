@@ -1,7 +1,8 @@
 env.DIST = 'xenial'
 env.TYPE = 'user'
+env.DOCKER_ENV_WHITELIST = 'APPNAME'
 
-cleanNode {
+cleanNode('amd64') {
   stage 'generate'
   git 'https://github.com/apachelogger/kf5-snap-app'
   sh 'echo $APPNAME > appname'
@@ -24,6 +25,8 @@ cleanNode('amd64 && cloud') {
 cleanNode('master') {
   stage 'snapcraft push'
   unstash 'snaps'
+  sh 'env'
+  sh 'echo $APPNAME > appname'
   sh 'tree || ls -lahR'
   // Temporary workspace during pipeline execution can't be accessed via UI, so
   // this should be save.
